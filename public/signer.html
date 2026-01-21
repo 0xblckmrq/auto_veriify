@@ -42,6 +42,7 @@
       status.innerText = "Connecting wallet...";
       try {
         let provider, signer;
+        let isWalletConnect = false;
 
         if (window.ethereum) {
           // Desktop or injected mobile wallet
@@ -51,19 +52,20 @@
           status.innerText = "Wallet connected via injected provider.";
         } else {
           // WalletConnect fallback for mobile
+          isWalletConnect = true;
           const wcProvider = new WalletConnectProvider.default({
             rpc: { 1: "https://cloudflare-eth.com" }
           });
           await wcProvider.enable();
           provider = new ethers.BrowserProvider(wcProvider);
           signer = await provider.getSigner();
-          status.innerText = "Wallet connected via WalletConnect. Please approve signing in your wallet app.";
+          status.innerText = "WalletConnect detected: open your wallet app to approve signing.";
         }
 
         // Sign challenge
         const sig = await signer.signMessage(challenge);
         sigOutput.innerText = sig;
-        status.innerText = "Signature generated. Submitting to bot...";
+        if (!isWalletConnect) status.innerText = "Signature generated. Submitting to bot...";
 
         // Auto-submit to bot
         const resp = await fetch("/api/signature", {
