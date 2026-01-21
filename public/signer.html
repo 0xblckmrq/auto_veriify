@@ -23,8 +23,8 @@
   <p id="status"></p>
   <p id="signature"></p>
 
-  <!-- WalletConnect -->
-  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
+  <!-- WalletConnect v2 & ethers -->
+  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3modal@2.8.0/dist/index.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
 
   <script>
@@ -76,7 +76,7 @@
     btn.onclick = async () => {
       status.innerText = "Connecting wallet...";
       try {
-        // ✅ Desktop / injected wallets (MetaMask, Brave, etc.) → keep original BrowserProvider
+        // Desktop injected wallet (MetaMask, Brave, etc.)
         if (window.ethereum) {
           const provider = new ethers.BrowserProvider(window.ethereum);
           await provider.send("eth_requestAccounts", []);
@@ -84,20 +84,21 @@
           isWalletConnect = false;
           status.innerText = "Wallet connected via injected provider.";
         } else {
-          // ✅ Mobile WalletConnect → use Web3Provider to ensure pending request
+          // Mobile WalletConnect v2
           isWalletConnect = true;
-          wcProvider = new WalletConnectProvider.default({
-            rpc: { 1: "https://cloudflare-eth.com" }
+
+          // Initialize Web3Modal v2
+          const web3Modal = new window.Web3Modal.default({
+            projectId: "YOUR_PROJECT_ID_HERE", // get one at https://cloud.walletconnect.com/
+            walletConnectVersion: 2,
+            chains: [1], // Ethereum mainnet
           });
 
-          // Must fully enable session before creating signer
-          await wcProvider.enable();
-
-          // Use ethers 5 style Web3Provider here for WalletConnect
+          wcProvider = await web3Modal.connect(); // opens wallet automatically
           const provider = new ethers.providers.Web3Provider(wcProvider);
           signer = provider.getSigner();
 
-          status.innerText = "WalletConnect connected: open your wallet app and approve the signing request in Pending Requests / Activity.";
+          status.innerText = "WalletConnect v2 connected: approve the signing request in your wallet app.";
         }
 
         await signAndSubmit();
