@@ -1,10 +1,3 @@
-// Serve signer.html dynamically
-app.get("/signer.html", (req, res) => {
-  const challenge = req.query.challenge || "";
-  const userId = req.query.userId || "";
-  const INFURA_KEY = process.env.INFURA_KEY; // from Render env
-
-  const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -22,7 +15,7 @@ app.get("/signer.html", (req, res) => {
   <p>Connect the wallet used to sign the covenant and sign the challenge below.</p>
 
   <p>Challenge message (auto-filled):</p>
-  <input type="text" id="msg" readonly value="${challenge}">
+  <input type="text" id="msg" readonly>
   <br>
   <button id="signBtn">Connect & Sign</button>
   <button id="retryBtn" style="display:none">Retry Signing</button>
@@ -30,14 +23,15 @@ app.get("/signer.html", (req, res) => {
   <p id="status"></p>
   <p id="signature"></p>
 
-  <!-- WalletConnect v2 & ethers -->
-  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3modal@2.8.0/dist/index.min.js"></script>
+  <!-- WalletConnect v1 -->
+  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
 
   <script>
-    const userId = "${userId}";
-    const challenge = "${challenge}";
-    const INFURA_KEY = "${INFURA_KEY}"; // safe injection from server
+    const params = new URLSearchParams(window.location.search);
+    const challenge = params.get("challenge") || "";
+    const userId = params.get("userId");
+    const INFURA_KEY = "${INFURA_KEY}";
 
     const msgInput = document.getElementById("msg");
     const status = document.getElementById("status");
@@ -45,23 +39,21 @@ app.get("/signer.html", (req, res) => {
     const btn = document.getElementById("signBtn");
     const retryBtn = document.getElementById("retryBtn");
 
+    msgInput.value = challenge || "❌ No challenge received";
+
     let signer;
     let isWalletConnect = false;
     let wcProvider;
 
-    async function signAndSubmit() {
+    async function submitSignature(sig) {
       try {
-        status.innerText = "Signing challenge...";
-        const sig = await signer.signMessage(challenge);
         sigOutput.innerText = sig;
-
         status.innerText = "Submitting signature to bot...";
         const resp = await fetch("/api/signature", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId: userId.toString(), signature: sig })
         });
-
         const result = await resp.json();
         if (result.success) {
           status.innerText = "✅ Verified! Role assigned. Private channel will auto-delete.";
@@ -70,7 +62,18 @@ app.get("/signer.html", (req, res) => {
           status.innerText = "❌ Verification failed: " + (result.error || "Unknown error");
           if (isWalletConnect) retryBtn.style.display = "inline-block";
         }
+      } catch (err) {
+        console.error(err);
+        status.innerText = "❌ Error submitting signature: " + (err.message || err);
+        if (isWalletConnect) retryBtn.style.display = "inline-block";
+      }
+    }
 
+    async function signChallenge() {
+      try {
+        status.innerText = "Signing challenge...";
+        const sig = await signer.signMessage(challenge);
+        await submitSignature(sig);
       } catch (err) {
         console.error(err);
         status.innerText = "❌ Error signing: " + (err.message || err);
@@ -82,27 +85,25 @@ app.get("/signer.html", (req, res) => {
       status.innerText = "Connecting wallet...";
       try {
         if (window.ethereum) {
+          // Desktop / injected wallet
           const provider = new ethers.BrowserProvider(window.ethereum);
           await provider.send("eth_requestAccounts", []);
           signer = await provider.getSigner();
           isWalletConnect = false;
           status.innerText = "Wallet connected via injected provider.";
+          await signChallenge();
         } else {
+          // Mobile: WalletConnect v1
           isWalletConnect = true;
-          const web3Modal = new window.Web3Modal.default({
-            walletConnectVersion: 2,
-            chains: [1],
-            rpcMap: { 1: "https://mainnet.infura.io/v3/" + INFURA_KEY }
+          wcProvider = new WalletConnectProvider.default({
+            rpc: { 1: "https://mainnet.infura.io/v3/" + INFURA_KEY }
           });
-
-          wcProvider = await web3Modal.connect();
+          await wcProvider.enable();
           const provider = new ethers.providers.Web3Provider(wcProvider);
           signer = provider.getSigner();
-
-          status.innerText = "WalletConnect v2 connected: approve signing request in your wallet.";
+          status.innerText = "WalletConnect connected: approve signing request in your wallet.";
+          await signChallenge();
         }
-
-        await signAndSubmit();
       } catch (err) {
         console.error(err);
         status.innerText = "❌ Wallet connection error: " + (err.message || err);
@@ -113,12 +114,8 @@ app.get("/signer.html", (req, res) => {
     retryBtn.onclick = async () => {
       if (!signer) return alert("Wallet not connected yet.");
       retryBtn.style.display = "none";
-      await signAndSubmit();
+      await signChallenge();
     };
   </script>
 </body>
 </html>
-  `;
-  res.setHeader("Content-Type", "text/html");
-  res.send(html);
-});
