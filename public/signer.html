@@ -1,3 +1,10 @@
+// Serve signer.html dynamically
+app.get("/signer.html", (req, res) => {
+  const challenge = req.query.challenge || "";
+  const userId = req.query.userId || "";
+  const INFURA_KEY = process.env.INFURA_KEY; // from Render env
+
+  const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -14,8 +21,8 @@
   <h2>human.tech Covenant Signatory Verification</h2>
   <p>Connect the wallet used to sign the covenant and sign the challenge below.</p>
 
-  <p>Challenge message (auto-filled from URL):</p>
-  <input type="text" id="msg" readonly>
+  <p>Challenge message (auto-filled):</p>
+  <input type="text" id="msg" readonly value="${challenge}">
   <br>
   <button id="signBtn">Connect & Sign</button>
   <button id="retryBtn" style="display:none">Retry Signing</button>
@@ -28,17 +35,15 @@
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
 
   <script>
-    const params = new URLSearchParams(window.location.search);
-    const challenge = params.get("challenge") || "";
-    const userId = params.get("userId");
+    const userId = "${userId}";
+    const challenge = "${challenge}";
+    const INFURA_KEY = "${INFURA_KEY}"; // safe injection from server
 
     const msgInput = document.getElementById("msg");
     const status = document.getElementById("status");
     const sigOutput = document.getElementById("signature");
     const btn = document.getElementById("signBtn");
     const retryBtn = document.getElementById("retryBtn");
-
-    msgInput.value = challenge || "❌ No challenge received";
 
     let signer;
     let isWalletConnect = false;
@@ -76,7 +81,6 @@
     btn.onclick = async () => {
       status.innerText = "Connecting wallet...";
       try {
-        // Desktop injected wallet (MetaMask, Brave, etc.)
         if (window.ethereum) {
           const provider = new ethers.BrowserProvider(window.ethereum);
           await provider.send("eth_requestAccounts", []);
@@ -84,25 +88,21 @@
           isWalletConnect = false;
           status.innerText = "Wallet connected via injected provider.";
         } else {
-          // Mobile WalletConnect v2
           isWalletConnect = true;
-
-          // Initialize Web3Modal v2
           const web3Modal = new window.Web3Modal.default({
-            projectId: "YOUR_PROJECT_ID_HERE", // get one at https://cloud.walletconnect.com/
             walletConnectVersion: 2,
-            chains: [1], // Ethereum mainnet
+            chains: [1],
+            rpcMap: { 1: "https://mainnet.infura.io/v3/" + INFURA_KEY }
           });
 
-          wcProvider = await web3Modal.connect(); // opens wallet automatically
+          wcProvider = await web3Modal.connect();
           const provider = new ethers.providers.Web3Provider(wcProvider);
           signer = provider.getSigner();
 
-          status.innerText = "WalletConnect v2 connected: approve the signing request in your wallet app.";
+          status.innerText = "WalletConnect v2 connected: approve signing request in your wallet.";
         }
 
         await signAndSubmit();
-
       } catch (err) {
         console.error(err);
         status.innerText = "❌ Wallet connection error: " + (err.message || err);
@@ -118,3 +118,7 @@
   </script>
 </body>
 </html>
+  `;
+  res.setHeader("Content-Type", "text/html");
+  res.send(html);
+});
