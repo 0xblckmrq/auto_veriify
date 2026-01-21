@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>human.tech Covenant Signatory Verification</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin:auto; }
+    #status { margin-top: 20px; word-break: break-word; font-size:16px; }
+    input { width:100%; padding:8px; margin-top:5px; }
+  </style>
+</head>
+<body>
+  <h2>human.tech Covenant Signatory Verification</h2>
+  <p>Connecting your wallet and signing the challenge automatically...</p>
+  <p>Challenge:</p>
+  <input type="text" id="msg" readonly>
+  <p id="status"></p>
+
+  <script type="module">
+    import WalletConnectProvider from "https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider/dist/esm/index.min.js";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const challenge = urlParams.get("challenge") || "";
+    const userId = urlParams.get("userId");
+
+    const msgInput = document.getElementById("msg");
+    const status = document.getElementById("status");
+    msgInput.value = challenge;
+
+    async function autoSign() {
+      status.innerText = "Connecting wallet...";
+      let provider;
+
+      try {
+        if (window.ethereum) {
+          provider = window.ethereum;
+          await provider.request({ method: "eth_requestAccounts" });
+        } else {
+          provider = new WalletConnectProvider({
+            rpc: { 1: "https://mainnet.infura.io/v3/84842078b09946638c03157f83405213" }
+          });
+          await provider.enable();
+        }
+
+        const accounts = await provider.request({ method: "eth_accounts" });
+        const account = accounts[0];
+        status.innerText = `Wallet connected: ${account}\nSigning challenge...`;
+
+        const signature = await provider.request({
+          method: "personal_sign",
+          params: [challenge, account]
+        });
+
+        status.innerText = "✅ Challenge signed! Submitting to bot...";
+
+        const resp = await fetch("/api/signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, signature })
+        });
+
+        const result = await resp.json();
+        if (result.success) {
+          status.innerText = "🎉 Verification complete! Role assigned. Private channel will delete shortly.";
+        } else {
+          status.innerText = "❌ Verification failed: " + (result.error || "Unknown error");
+        }
+
+      } catch (err) {
+        console.error(err);
+        status.innerText = "❌ Error: " + err.message;
+      }
+    }
+
+    // Run automatically
+    autoSign();
+  </script>
+</body>
+</html>
