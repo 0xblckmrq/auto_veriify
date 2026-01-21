@@ -7,7 +7,7 @@
     body { font-family: sans-serif; padding: 20px; max-width: 600px; margin:auto; }
     input { width: 90%; padding: 8px; margin-bottom: 10px; }
     button { padding: 10px 14px; font-size:16px; cursor:pointer; }
-    #signature { margin-top: 10px; word-break: break-all; }
+    #status, #signature { margin-top: 10px; word-break: break-word; }
   </style>
 </head>
 <body>
@@ -17,68 +17,73 @@
   <p>Challenge message (auto-filled from URL):</p>
   <input type="text" id="msg" readonly>
   <br>
-  <button onclick="sign()">Connect & Sign</button>
+  <button id="signBtn">Connect & Sign</button>
 
+  <p id="status"></p>
   <p id="signature"></p>
 
   <!-- WalletConnect -->
   <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
 
   <script>
     const params = new URLSearchParams(window.location.search);
     const challenge = params.get("challenge") || "";
     const userId = params.get("userId");
 
-    document.getElementById("msg").value = challenge || "❌ No challenge received";
+    const msgInput = document.getElementById("msg");
+    const status = document.getElementById("status");
+    const sigOutput = document.getElementById("signature");
+    msgInput.value = challenge || "❌ No challenge received";
 
-    async function sign() {
-      let provider;
+    const btn = document.getElementById("signBtn");
 
+    btn.onclick = async () => {
+      status.innerText = "Connecting wallet...";
       try {
-        // Desktop injected wallets
+        let provider, signer;
+
         if (window.ethereum) {
-          provider = window.ethereum;
-          await provider.request({ method: "eth_requestAccounts" });
-        } 
-        // WalletConnect fallback
-        else {
-          provider = new WalletConnectProvider.default({
+          // Desktop or injected mobile wallet
+          provider = new ethers.BrowserProvider(window.ethereum);
+          await provider.send("eth_requestAccounts", []);
+          signer = await provider.getSigner();
+          status.innerText = "Wallet connected via injected provider.";
+        } else {
+          // WalletConnect fallback for mobile
+          const wcProvider = new WalletConnectProvider.default({
             rpc: { 1: "https://cloudflare-eth.com" }
           });
-          await provider.enable();
+          await wcProvider.enable();
+          provider = new ethers.BrowserProvider(wcProvider);
+          signer = await provider.getSigner();
+          status.innerText = "Wallet connected via WalletConnect. Please approve signing in your wallet app.";
         }
 
-        const accounts = await provider.request({ method: "eth_accounts" });
-        const account = accounts[0];
-
-        if (!challenge) {
-          return alert("No challenge found!");
-        }
-
-        const sig = await provider.request({
-          method: "personal_sign",
-          params: [challenge, account]
-        });
+        // Sign challenge
+        const sig = await signer.signMessage(challenge);
+        sigOutput.innerText = sig;
+        status.innerText = "Signature generated. Submitting to bot...";
 
         // Auto-submit to bot
         const resp = await fetch("/api/signature", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, signature: sig })
+          body: JSON.stringify({ userId: userId.toString(), signature: sig })
         });
 
         const result = await resp.json();
         if (result.success) {
-          document.getElementById("signature").innerText = "🎉 Verified! Role assigned. Private channel will auto-delete.";
+          status.innerText = "✅ Verified! Role assigned. Private channel will auto-delete.";
         } else {
-          document.getElementById("signature").innerText = "❌ Verification failed: " + (result.error || "Unknown error");
+          status.innerText = "❌ Verification failed: " + (result.error || "Unknown error");
         }
 
       } catch (err) {
         console.error(err);
-        alert(err.message || err);
+        status.innerText = "❌ Error: " + (err.message || err);
       }
-    }
+    };
   </script>
 </body>
 </html>
