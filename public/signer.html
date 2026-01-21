@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <title>human.tech Covenant Signatory Verification</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin:auto; }
     input { width: 90%; padding: 8px; margin-bottom: 10px; }
-    button { padding: 10px 14px; }
+    button { padding: 10px 14px; font-size:16px; cursor:pointer; }
     #signature { margin-top: 10px; word-break: break-all; }
   </style>
 </head>
@@ -25,15 +25,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
 
   <script>
-    // ---- PREFILL CHALLENGE (FIRST) ----
     const params = new URLSearchParams(window.location.search);
     const challenge = params.get("challenge") || "";
-    console.log("QUERY:", window.location.search);
-    console.log("CHALLENGE:", challenge);
+    const userId = params.get("userId");
 
     document.getElementById("msg").value = challenge || "❌ No challenge received";
 
-    // ---- SIGN FUNCTION ----
     async function sign() {
       let provider;
 
@@ -53,22 +50,33 @@
 
         const accounts = await provider.request({ method: "eth_accounts" });
         const account = accounts[0];
-        const msg = document.getElementById("msg").value;
 
-        if (!msg) {
-          return alert("No challenge to sign.");
+        if (!challenge) {
+          return alert("No challenge found!");
         }
 
         const sig = await provider.request({
           method: "personal_sign",
-          params: [msg, account]
+          params: [challenge, account]
         });
 
-        document.getElementById("signature").innerText = sig;
+        // Auto-submit to bot
+        const resp = await fetch("/api/signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, signature: sig })
+        });
 
-      } catch (e) {
-        console.error(e);
-        alert(e.message || e);
+        const result = await resp.json();
+        if (result.success) {
+          document.getElementById("signature").innerText = "🎉 Verified! Role assigned. Private channel will auto-delete.";
+        } else {
+          document.getElementById("signature").innerText = "❌ Verification failed: " + (result.error || "Unknown error");
+        }
+
+      } catch (err) {
+        console.error(err);
+        alert(err.message || err);
       }
     }
   </script>
