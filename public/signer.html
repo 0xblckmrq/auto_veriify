@@ -6,7 +6,7 @@
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 600px; margin:auto; }
     input { width: 90%; padding: 8px; margin-bottom: 10px; }
-    button { padding: 10px 14px; font-size:16px; cursor:pointer; }
+    button { padding: 10px 14px; font-size:16px; cursor:pointer; margin-right:10px; }
     #status, #signature { margin-top: 10px; word-break: break-word; }
   </style>
 </head>
@@ -18,6 +18,7 @@
   <input type="text" id="msg" readonly>
   <br>
   <button id="signBtn">Connect & Sign</button>
+  <button id="retryBtn" style="display:none">Retry Signing</button>
 
   <p id="status"></p>
   <p id="signature"></p>
@@ -34,40 +35,24 @@
     const msgInput = document.getElementById("msg");
     const status = document.getElementById("status");
     const sigOutput = document.getElementById("signature");
+    const btn = document.getElementById("signBtn");
+    const retryBtn = document.getElementById("retryBtn");
+
     msgInput.value = challenge || "❌ No challenge received";
 
-    const btn = document.getElementById("signBtn");
+    let signer;
+    let isWalletConnect = false;
+    let wcProvider;
 
-    btn.onclick = async () => {
-      status.innerText = "Connecting wallet...";
+    async function signAndSubmit() {
+      if (!challenge || !userId) return alert("Missing challenge or userId");
+      status.innerText = "Signing challenge...";
+
       try {
-        let provider, signer;
-        let isWalletConnect = false;
-
-        if (window.ethereum) {
-          // Desktop or injected mobile wallet
-          provider = new ethers.BrowserProvider(window.ethereum);
-          await provider.send("eth_requestAccounts", []);
-          signer = await provider.getSigner();
-          status.innerText = "Wallet connected via injected provider.";
-        } else {
-          // WalletConnect fallback for mobile
-          isWalletConnect = true;
-          const wcProvider = new WalletConnectProvider.default({
-            rpc: { 1: "https://cloudflare-eth.com" }
-          });
-          await wcProvider.enable();
-          provider = new ethers.BrowserProvider(wcProvider);
-          signer = await provider.getSigner();
-          status.innerText = "WalletConnect detected: open your wallet app to approve signing.";
-        }
-
-        // Sign challenge
         const sig = await signer.signMessage(challenge);
         sigOutput.innerText = sig;
-        if (!isWalletConnect) status.innerText = "Signature generated. Submitting to bot...";
 
-        // Auto-submit to bot
+        status.innerText = "Submitting signature to bot...";
         const resp = await fetch("/api/signature", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -77,14 +62,54 @@
         const result = await resp.json();
         if (result.success) {
           status.innerText = "✅ Verified! Role assigned. Private channel will auto-delete.";
+          retryBtn.style.display = "none";
         } else {
           status.innerText = "❌ Verification failed: " + (result.error || "Unknown error");
+          if (isWalletConnect) retryBtn.style.display = "inline-block";
         }
 
       } catch (err) {
         console.error(err);
-        status.innerText = "❌ Error: " + (err.message || err);
+        status.innerText = "❌ Error signing: " + (err.message || err);
+        if (isWalletConnect) retryBtn.style.display = "inline-block";
       }
+    }
+
+    btn.onclick = async () => {
+      status.innerText = "Connecting wallet...";
+      try {
+        // Desktop or injected mobile wallet
+        if (window.ethereum) {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          await provider.send("eth_requestAccounts", []);
+          signer = await provider.getSigner();
+          isWalletConnect = false;
+          status.innerText = "Wallet connected via injected provider.";
+        } else {
+          // Mobile WalletConnect
+          isWalletConnect = true;
+          wcProvider = new WalletConnectProvider.default({
+            rpc: { 1: "https://cloudflare-eth.com" }
+          });
+          await wcProvider.enable(); // user approves wallet connection
+          const provider = new ethers.BrowserProvider(wcProvider);
+          signer = await provider.getSigner();
+          status.innerText = "WalletConnect connected: open wallet app and approve signing request.";
+        }
+
+        await signAndSubmit();
+
+      } catch (err) {
+        console.error(err);
+        status.innerText = "❌ Wallet connection error: " + (err.message || err);
+        if (isWalletConnect) retryBtn.style.display = "inline-block";
+      }
+    };
+
+    retryBtn.onclick = async () => {
+      if (!signer) return alert("Wallet not connected yet.");
+      retryBtn.style.display = "none";
+      await signAndSubmit();
     };
   </script>
 </body>
