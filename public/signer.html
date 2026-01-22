@@ -4,10 +4,20 @@
   <meta charset="UTF-8">
   <title>human.tech Covenant Signatory Verification</title>
   <style>
+    /* --- Brand Colors --- */
+    :root {
+      --primary: #3458EA;
+      --success: #63AD14;
+      --highlight: #FFCC00;
+      --background: #F4F7FB;
+      --text-color: #111;
+      --card-bg: #fff;
+    }
+
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #f4f7fb;
-      color: #111;
+      background: var(--background);
+      color: var(--text-color);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -23,54 +33,56 @@
     }
 
     header img {
-      height: 50px;
+      height: 60px;
       object-fit: contain;
     }
 
     header h1 {
-      font-size: 1.8rem;
+      font-size: 1.9rem;
       margin: 0;
-      color: #0b3d91;
+      color: var(--primary);
     }
 
     main {
       width: 100%;
-      max-width: 600px;
-      background: #fff;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      max-width: 650px;
+      background: var(--card-bg);
+      padding: 35px;
+      border-radius: 14px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      border-top: 5px solid var(--primary);
     }
 
     input {
       width: 100%;
-      padding: 10px;
+      padding: 12px;
       font-size: 1rem;
-      margin-bottom: 15px;
+      margin-bottom: 20px;
       border: 1px solid #ccc;
-      border-radius: 8px;
+      border-radius: 10px;
       background: #f9f9f9;
+      font-family: monospace;
     }
 
     button {
-      padding: 12px 20px;
-      font-size: 1rem;
+      padding: 14px 0;
+      font-size: 1.1rem;
       border: none;
-      border-radius: 8px;
-      background: #0b3d91;
+      border-radius: 10px;
+      background: var(--primary);
       color: #fff;
       cursor: pointer;
       transition: 0.3s all;
       width: 100%;
       position: relative;
       overflow: hidden;
+      font-weight: 600;
     }
 
     button:hover {
-      background: #0a3578;
+      background: #2c47bf;
     }
 
-    /* Glow animation for button during processing */
     button.loading::after {
       content: '';
       position: absolute;
@@ -80,7 +92,7 @@
       height: 24px;
       margin: -12px 0 0 -12px;
       border: 3px solid #fff;
-      border-top: 3px solid #0b3d91;
+      border-top: 3px solid var(--highlight);
       border-radius: 50%;
       animation: spin 1s linear infinite;
       z-index: 10;
@@ -91,58 +103,58 @@
       100% { transform: rotate(360deg);}
     }
 
-    #status, #signature {
-      margin-top: 15px;
-      word-break: break-word;
-      font-size: 0.95rem;
-    }
-
     #status {
-      color: #0b3d91;
+      margin-top: 20px;
+      font-size: 1rem;
+      color: var(--primary);
     }
 
     #signature {
-      color: #007700;
+      margin-top: 10px;
+      font-size: 0.95rem;
+      color: var(--success);
+      word-break: break-word;
+      font-family: monospace;
     }
 
-    /* Progress steps */
     .steps {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 20px;
+      margin-bottom: 25px;
     }
 
     .step {
       flex: 1;
       text-align: center;
       position: relative;
-      font-size: 0.9rem;
+      font-size: 0.95rem;
       color: #aaa;
+      font-weight: 500;
     }
 
     .step.active {
       font-weight: bold;
-      color: #0b3d91;
+      color: var(--primary);
     }
 
     .step::before {
       content: '';
-      width: 12px;
-      height: 12px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
       background: #ccc;
       display: block;
-      margin: 0 auto 5px;
+      margin: 0 auto 6px;
     }
 
     .step.active::before {
-      background: #0b3d91;
+      background: var(--primary);
     }
 
     .step::after {
       content: '';
       position: absolute;
-      top: 6px;
+      top: 7px;
       left: 50%;
       height: 2px;
       width: 100%;
@@ -155,14 +167,14 @@
     }
 
     .step.active + .step::after {
-      background: #0b3d91;
+      background: var(--primary);
     }
   </style>
 </head>
 <body>
 
   <header>
-    <img src="https://human.tech/_next/image?url=%2Fimages%2Flogo.png&w=256&q=75" alt="human.tech Logo">
+    <img src="https://holonym.notion.site/image/attachment%3A3c1d9eaa-b0f0-40ec-8e4b-8ebd001e8ba5%3Ahuman-tech_black-noise-bg_glow.png" alt="human.tech Logo">
     <h1>Covenant Signatory Verification</h1>
   </header>
 
@@ -270,6 +282,5 @@
       }
     };
   </script>
-
 </body>
 </html>
