@@ -24,6 +24,7 @@
 
     header img {
       height: 50px;
+      object-fit: contain;
     }
 
     header h1 {
@@ -62,10 +63,32 @@
       transition: 0.3s all;
       width: 100%;
       position: relative;
+      overflow: hidden;
     }
 
     button:hover {
       background: #0a3578;
+    }
+
+    /* Glow animation for button during processing */
+    button.loading::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 24px;
+      height: 24px;
+      margin: -12px 0 0 -12px;
+      border: 3px solid #fff;
+      border-top: 3px solid #0b3d91;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      z-index: 10;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg);}
+      100% { transform: rotate(360deg);}
     }
 
     #status, #signature {
@@ -139,7 +162,7 @@
 <body>
 
   <header>
-    <img src="https://human.tech/logo.png" alt="human.tech Logo">
+    <img src="https://human.tech/_next/image?url=%2Fimages%2Flogo.png&w=256&q=75" alt="human.tech Logo">
     <h1>Covenant Signatory Verification</h1>
   </header>
 
@@ -190,6 +213,7 @@
 
     async function submitSignature(sig) {
       step3.classList.add("active");
+      btn.classList.remove("loading");
       try {
         sigOutput.innerText = sig;
         status.innerText = "Submitting signature to bot...";
@@ -218,15 +242,18 @@
         await submitSignature(sig);
       } catch (err) {
         console.error(err);
+        btn.classList.remove("loading");
         status.innerText = "❌ Error signing: " + (err.message || err);
       }
     }
 
     btn.onclick = async () => {
       step1.classList.add("active");
+      btn.classList.add("loading");
       status.innerText = "Checking for wallet...";
       try {
         if (!window.ethereum) {
+          btn.classList.remove("loading");
           status.innerText = "❌ No wallet detected. Please open this page in a wallet-enabled browser or use a desktop.";
           return;
         }
@@ -234,10 +261,11 @@
         const provider = new ethers.BrowserProvider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         signer = await provider.getSigner();
-        status.innerText = "Wallet connected. Please approve the signature request in your wallet.";
+        status.innerText = "Wallet connected. Awaiting signature approval...";
         await signChallenge();
       } catch (err) {
         console.error(err);
+        btn.classList.remove("loading");
         status.innerText = "❌ Wallet connection/signing error: " + (err.message || err);
       }
     };
