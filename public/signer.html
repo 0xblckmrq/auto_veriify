@@ -11,7 +11,6 @@
       --highlight: #FFCC00;
       --background: #F4F7FB;
       --text-color: #111;
-      --card-bg: #fff;
     }
 
     body {
@@ -46,7 +45,7 @@
     main {
       width: 100%;
       max-width: 650px;
-      background: var(--card-bg);
+      background: #fff;
       padding: 35px;
       border-radius: 14px;
       box-shadow: 0 8px 20px rgba(0,0,0,0.1);
@@ -58,10 +57,11 @@
       padding: 12px;
       font-size: 1rem;
       margin-bottom: 20px;
-      border: 1px solid #ccc;
+      border: 2px solid var(--primary);
       border-radius: 10px;
-      background: #f9f9f9;
+      background: #fff;
       font-family: monospace;
+      color: var(--text-color);
     }
 
     button {
@@ -128,13 +128,13 @@
       text-align: center;
       position: relative;
       font-size: 0.95rem;
-      color: #aaa;
+      color: var(--primary);
       font-weight: 500;
     }
 
     .step.active {
       font-weight: bold;
-      color: var(--primary);
+      color: var(--highlight);
     }
 
     .step::before {
@@ -142,13 +142,13 @@
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      background: #ccc;
+      background: var(--primary);
       display: block;
       margin: 0 auto 6px;
     }
 
     .step.active::before {
-      background: var(--primary);
+      background: var(--highlight);
     }
 
     .step::after {
@@ -158,7 +158,7 @@
       left: 50%;
       height: 2px;
       width: 100%;
-      background: #ccc;
+      background: var(--primary);
       z-index: -1;
     }
 
@@ -167,14 +167,15 @@
     }
 
     .step.active + .step::after {
-      background: var(--primary);
+      background: var(--highlight);
     }
   </style>
 </head>
 <body>
 
   <header>
-    <img src="https://holonym.notion.site/image/attachment%3A3c1d9eaa-b0f0-40ec-8e4b-8ebd001e8ba5%3Ahuman-tech_black-noise-bg_glow.png" alt="human.tech Logo">
+    <img src="https://img.notionusercontent.com/s3/prod-files-secure%2F11303e65-dc08-4453-b844-d51bc0f1d8f7%2Fc2f49869-f729-4228-876d-9ee79a023d61%2Fsymbol-noise-glow.png/size/w=290?exp=1769189711&sig=-6KbsvMZRNavdIsuwb-cC-P1KPrUIH9_W3RDTpWBJN4&id=191abe54-0a8f-8066-8564-c22f83442a1e&table=block"
+         alt="human.tech Logo">
     <h1>Covenant Signatory Verification</h1>
   </header>
 
@@ -282,5 +283,6 @@
       }
     };
   </script>
+
 </body>
 </html>
