@@ -44,8 +44,10 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 const challenges = new Map();
 const cooldowns = new Map();
 const createdChannels = new Map(); // userId -> channelId
+const channelDeleteTimers = new Map(); // userId -> timeout handle (for 10-min auto-delete)
 const COOLDOWN_SECONDS = 300;
-const CHANNEL_LIFETIME = 15 * 60 * 1000; // 15 minutes
+const CHANNEL_LIFETIME = 10 * 60 * 1000; // 10 minutes (was 15 minutes)
+const VERIFIED_CLOSE_MS = 10 * 1000; // 10 seconds (was 8 seconds)
 
 // ===== CACHES =====
 const scoreCache = new Map();
@@ -204,7 +206,9 @@ client.on("interactionCreate", async interaction => {
       });
 
       createdChannels.set(userId, channel.id);
-      setTimeout(() => {
+
+      // Auto-delete after 10 minutes if not verified; track timer so we can clear it on success
+      const timer = setTimeout(() => {
         const chId = createdChannels.get(userId);
         if (chId) {
           const ch = guild.channels.cache.get(chId);
@@ -212,7 +216,10 @@ client.on("interactionCreate", async interaction => {
           createdChannels.delete(userId);
           challenges.delete(userId);
         }
-      }, 15 * 60 * 1000); // 15 mins
+        channelDeleteTimers.delete(userId);
+      }, CHANNEL_LIFETIME);
+
+      channelDeleteTimers.set(userId, timer);
 
       const challenge = `Verify ownership for ${wallet} at ${Date.now()}`;
       challenges.set(userId, { challenge, wallet, channelId: channel.id });
@@ -220,7 +227,7 @@ client.on("interactionCreate", async interaction => {
       const signerUrl = `${EXTERNAL_URL.replace(/\/$/, "")}/signer.html?userId=${userId}&challenge=${encodeURIComponent(challenge)}`;
 
       await channel.send(`
-# human.tech Covenant Signatory Verification
+# human.tech Role Verification
 
 Click the link to connect your wallet and sign:
 
@@ -248,6 +255,11 @@ app.post("/api/signature", async (req, res) => {
     const recovered = ethers.verifyMessage(data.challenge, signature);
     if (recovered.toLowerCase() !== data.wallet.toLowerCase())
       return res.status(400).json({ error: "Signature mismatch" });
+
+    // Clear the 10-minute auto-delete timer to avoid race/double deletes
+    const t = channelDeleteTimers.get(userId.toString());
+    if (t) clearTimeout(t);
+    channelDeleteTimers.delete(userId.toString());
 
     const guild = client.guilds.cache.get(GUILD_ID);
     const member = await guild.members.fetch(userId);
@@ -293,7 +305,7 @@ app.post("/api/signature", async (req, res) => {
         `🏷 Roles granted: **${grantedRoles.join(", ") || "None"}**\n\n` +
         `Channel will close shortly…`
       );
-      setTimeout(() => channel.delete().catch(() => {}), 8000);
+      setTimeout(() => channel.delete().catch(() => {}), VERIFIED_CLOSE_MS);
       createdChannels.delete(userId);
     }
 
