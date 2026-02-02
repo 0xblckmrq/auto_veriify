@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>human.tech role verification</title>
+
   <style>
     :root {
       --primary: #3458EA;
@@ -20,8 +21,7 @@
       justify-content: center;
       align-items: center;
       height: 100vh;
-      background: url('/mnt/data/1df78878-2623-4350-afcc-e916cd490e39.png') no-repeat center center fixed;
-      background-size: cover;
+      background: #f4f7fb;
       color: var(--text-color);
     }
 
@@ -42,19 +42,64 @@
       color: var(--primary);
     }
 
-    .steps { display: flex; justify-content: space-between; margin-bottom: 25px; }
-    .step { flex: 1; text-align: center; position: relative; font-size: 0.95rem; color: var(--primary); font-weight: 500; }
-    .step.active { font-weight: bold; color: var(--highlight); }
-    .step::before { content: ''; width: 14px; height: 14px; border-radius: 50%; background: var(--primary); display: block; margin: 0 auto 6px; }
-    .step.active::before { background: var(--highlight); }
-    .step::after { content: ''; position: absolute; top: 7px; left: 50%; height: 2px; width: 100%; background: var(--primary); z-index: -1; }
-    .step:last-child::after { display: none; }
-    .step.active + .step::after { background: var(--highlight); }
+    .steps {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 25px;
+    }
 
-    .wallet-btns { display: flex; justify-content: space-around; margin-bottom: 20px; }
+    .step {
+      flex: 1;
+      text-align: center;
+      position: relative;
+      font-size: 0.95rem;
+      color: var(--primary);
+      font-weight: 500;
+    }
+
+    .step.active {
+      font-weight: bold;
+      color: var(--highlight);
+    }
+
+    .step::before {
+      content: '';
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--primary);
+      display: block;
+      margin: 0 auto 6px;
+    }
+
+    .step.active::before {
+      background: var(--highlight);
+    }
+
+    .step::after {
+      content: '';
+      position: absolute;
+      top: 7px;
+      left: 50%;
+      height: 2px;
+      width: 100%;
+      background: var(--primary);
+      z-index: -1;
+    }
+
+    .step:last-child::after {
+      display: none;
+    }
+
+    .wallet-btns {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 20px;
+      gap: 10px;
+    }
+
     .wallet-btn {
       flex: 1;
-      margin: 0 5px;
       padding: 12px 0;
       border-radius: 10px;
       border: none;
@@ -63,9 +108,11 @@
       color: #fff;
       transition: 0.3s;
     }
+
     .wallet-btn.metamask { background: #E2761B; }
     .wallet-btn.walletconnect { background: #3B99FC; }
     .wallet-btn.waap { background: #8A2BE2; }
+
     .wallet-btn:hover { filter: brightness(1.1); }
 
     input#msg {
@@ -78,7 +125,7 @@
       font-family: monospace;
     }
 
-    button#signBtn {
+    #signBtn {
       display: none;
       padding: 14px 0;
       font-size: 1.1rem;
@@ -87,31 +134,26 @@
       background: var(--primary);
       color: #fff;
       cursor: pointer;
-      transition: 0.3s all;
       width: 100%;
       font-weight: 600;
-      position: relative;
-      overflow: hidden;
-    }
-    button.loading::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 24px;
-      height: 24px;
-      margin: -12px 0 0 -12px;
-      border: 3px solid #fff;
-      border-top: 3px solid var(--highlight);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      z-index: 10;
     }
 
-    #status { margin-top: 20px; font-size: 1rem; color: var(--primary); }
-    #signature { margin-top: 10px; font-size: 0.95rem; color: var(--success); word-break: break-word; font-family: monospace; }
+    #status {
+      margin-top: 20px;
+      font-size: 1rem;
+      color: var(--primary);
+    }
+
+    #signature {
+      margin-top: 10px;
+      font-size: 0.95rem;
+      color: var(--success);
+      word-break: break-word;
+      font-family: monospace;
+    }
   </style>
 </head>
+
 <body>
 <main>
   <header>
@@ -126,6 +168,7 @@
   </div>
 
   <p>Choose your wallet:</p>
+
   <div class="wallet-btns">
     <button class="wallet-btn metamask" data-wallet="metamask">MetaMask</button>
     <button class="wallet-btn walletconnect" data-wallet="walletconnect">WalletConnect</button>
@@ -140,102 +183,117 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider/dist/umd/index.min.js"></script>
-<script>
-const params = new URLSearchParams(window.location.search);
-const challenge = params.get("challenge") || "";
-const userId = params.get("userId");
 
-const msgInput = document.getElementById("msg");
-const status = document.getElementById("status");
-const sigOutput = document.getElementById("signature");
-const btn = document.getElementById("signBtn");
-const step1 = document.getElementById("step1");
-const step2 = document.getElementById("step2");
-const step3 = document.getElementById("step3");
-const step4 = document.getElementById("step4");
-msgInput.value = challenge || "❌ No challenge received";
-let signer;
+<script type="module">
+  import { EthereumProvider } from "https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2/+esm";
+  import { initWaaP } from "https://cdn.jsdelivr.net/npm/@human.tech/waap-sdk@latest/+esm";
 
-function updateStep(stepNum) {
-  [step1, step2, step3, step4].forEach((el, idx) => el.classList.toggle("active", idx < stepNum));
-}
+  const WALLETCONNECT_PROJECT_ID = "458187c5895e1cb056679eedabc8f362";
 
-async function submitSignature(sig) {
-  step3.classList.add("active");
-  btn.classList.remove("loading");
-  try {
+  const params = new URLSearchParams(window.location.search);
+  const challenge = params.get("challenge") || "";
+  const userId = params.get("userId");
+
+  const msgInput = document.getElementById("msg");
+  const status = document.getElementById("status");
+  const sigOutput = document.getElementById("signature");
+
+  const step1 = document.getElementById("step1");
+  const step2 = document.getElementById("step2");
+  const step3 = document.getElementById("step3");
+  const step4 = document.getElementById("step4");
+
+  msgInput.value = challenge || "❌ No challenge received";
+
+  let signer;
+  let waapReady = false;
+
+  async function submitSignature(sig) {
+    step3.classList.add("active");
     sigOutput.innerText = sig;
-    status.innerText = "Submitting signature to bot...";
+    status.innerText = "Submitting signature...";
+
     const resp = await fetch("/api/signature", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: userId.toString(), signature: sig })
+      body: JSON.stringify({ userId, signature: sig })
     });
+
     const result = await resp.json();
+
     if (result.success) {
       step4.classList.add("active");
-      status.innerText = "✅ Verified! Role assigned. Private channel will auto-delete.";
+      status.innerText = "✅ Verified! Role assigned.";
     } else {
-      status.innerText = "❌ Verification failed: " + (result.error || "Unknown error");
+      status.innerText = "❌ Verification failed";
     }
-  } catch (err) {
-    console.error(err);
-    status.innerText = "❌ Error submitting signature: " + (err.message || err);
   }
-}
 
-async function signChallenge() {
-  step2.classList.add("active");
-  try {
+  async function signChallenge() {
+    step2.classList.add("active");
     const sig = await signer.signMessage(challenge);
     await submitSignature(sig);
-  } catch (err) {
-    console.error(err);
-    btn.classList.remove("loading");
-    status.innerText = "❌ Error signing: " + (err.message || err);
   }
-}
 
-// Wallet buttons logic
-document.querySelectorAll(".wallet-btn").forEach(button => {
-  button.addEventListener("click", async () => {
-    const choice = button.dataset.wallet;
-    btn.style.display = "block";
-    btn.classList.add("loading");
-    step1.classList.add("active");
-    status.innerText = "Connecting " + choice + "...";
+  async function connectMetaMask() {
+    if (!window.ethereum) throw new Error("MetaMask not detected");
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    return provider.getSigner();
+  }
 
-    try {
-      if (choice === "metamask") {
-        if (!window.ethereum) throw new Error("MetaMask not detected");
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        signer = await provider.getSigner();
-      } else if (choice === "walletconnect") {
-        const wcProvider = new WalletConnectProvider.default({
-          rpc: {
-            1: "https://eth-mainnet.alchemyapi.io/v2/YOUR_ALCHEMY_KEY",
-            8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_KEY"
-          }
-        });
-        await wcProvider.enable();
-        const provider = new ethers.BrowserProvider(wcProvider);
-        signer = await provider.getSigner();
-      } else if (choice === "waap") {
-        if (!window.WAAP) throw new Error("WaaP SDK not loaded");
-        const provider = new ethers.BrowserProvider(await WAAP.getProvider());
-        signer = await provider.getSigner();
+  async function connectWalletConnect() {
+    const wc = await EthereumProvider.init({
+      projectId: WALLETCONNECT_PROJECT_ID,
+      showQrModal: true,
+      metadata: {
+        name: "human.tech role verification",
+        description: "Role verification signature",
+        url: window.location.origin,
+        icons: []
       }
-      status.innerText = "Wallet connected. Awaiting signature approval...";
-      await signChallenge();
-    } catch (err) {
-      console.error(err);
-      btn.classList.remove("loading");
-      status.innerText = "❌ Wallet connection/signing error: " + (err.message || err);
+    });
+
+    await wc.connect();
+    const provider = new ethers.BrowserProvider(wc);
+    await provider.send("eth_requestAccounts", []);
+    return provider.getSigner();
+  }
+
+  async function connectWaaP() {
+    if (!waapReady) {
+      initWaaP({
+        config: { authenticationMethods: ["wallet"] },
+        walletConnectProjectId: WALLETCONNECT_PROJECT_ID,
+        project: { name: "human.tech role verification" }
+      });
+      waapReady = true;
     }
+
+    await window.waap.login();
+    const provider = new ethers.BrowserProvider(window.waap);
+    await provider.send("eth_requestAccounts", []);
+    return provider.getSigner();
+  }
+
+  document.querySelectorAll(".wallet-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      step1.classList.add("active");
+      status.innerText = "Connecting wallet...";
+
+      try {
+        if (btn.dataset.wallet === "metamask") signer = await connectMetaMask();
+        if (btn.dataset.wallet === "walletconnect") signer = await connectWalletConnect();
+        if (btn.dataset.wallet === "waap") signer = await connectWaaP();
+
+        status.innerText = "Wallet connected. Please sign.";
+        await signChallenge();
+      } catch (err) {
+        console.error(err);
+        status.innerText = "❌ " + err.message;
+      }
+    });
   });
-});
 </script>
 </body>
 </html>
