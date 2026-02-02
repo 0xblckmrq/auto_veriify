@@ -19,8 +19,9 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 const API_KEY = process.env.WHITELIST_API_KEY;
 const EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
+const PASSPORT_API_KEY = process.env.PASSPORT_API_KEY;
 
-if (!TOKEN || !CLIENT_ID || !GUILD_ID || !API_KEY || !EXTERNAL_URL) {
+if (!TOKEN || !CLIENT_ID || !GUILD_ID || !API_KEY || !EXTERNAL_URL || !PASSPORT_API_KEY) {
   console.error("Missing environment variables");
   process.exit(1);
 }
@@ -68,6 +69,21 @@ async function fetchWhitelist() {
   return json.signers || [];
 }
 
+async function fetchPassportScore(wallet) {
+  const url = `https://api.passport.xyz/v2/stamps/9325/score/${wallet}`;
+
+  const res = await fetch(url, {
+    headers: {
+      "X-API-KEY": PASSPORT_API_KEY
+    }
+  });
+
+  if (!res.ok) throw new Error("Passport API failed");
+
+  const json = await res.json();
+  return Number(json.score ?? json?.data?.score ?? 0);
+}
+
 // ===== DISCORD EVENTS =====
 client.once("ready", () => console.log(`Logged in as ${client.user.tag}`));
 
@@ -81,10 +97,8 @@ client.on("interactionCreate", async interaction => {
     const wallet = interaction.options.getString("wallet").toLowerCase();
     const userId = interaction.user.id.toString();
 
-    // Defer reply to prevent "Unknown Interaction" errors
     await interaction.deferReply({ ephemeral: true });
 
-    // Cooldown
     const now = Date.now();
     const last = cooldowns.get(userId) || 0;
     if (now - last < COOLDOWN_SECONDS * 1000) {
@@ -93,7 +107,6 @@ client.on("interactionCreate", async interaction => {
     }
     cooldowns.set(userId, now);
 
-    // Fetch whitelist
     const list = await fetchWhitelist();
     const entry = list.find(w =>
       w.walletAddress?.toLowerCase() === wallet &&
@@ -104,7 +117,6 @@ client.on("interactionCreate", async interaction => {
     if (!entry) return interaction.editReply({ content: "❌ Wallet not eligible: must be SIGNED + VERIFIED." });
 
     try {
-      // Create private verification channel
       const channel = await guild.channels.create({
         name: `verify-${member.user.username}`,
         type: ChannelType.GuildText,
@@ -115,22 +127,17 @@ client.on("interactionCreate", async interaction => {
         ]
       });
 
-      // Store challenge
       const challenge = `Verify ownership for ${wallet} at ${Date.now()}`;
       challenges.set(userId, { challenge, wallet, channelId: channel.id });
 
-      // Signer page URL
       const signerUrl = `${EXTERNAL_URL.replace(/\/$/, "")}/signer.html?userId=${userId}&challenge=${encodeURIComponent(challenge)}`;
 
-      // Send instructions in private channel
       await channel.send(`
 # human.tech Covenant Signatory Verification
 
-Click the link to connect your wallet and sign the challenge automatically:
+Click the link to connect your wallet and sign:
 
 🔗 ${signerUrl}
-
-Verification is automatic. Role will be assigned after signing, channel deletes automatically.
       `);
 
       return interaction.editReply({ content: `✅ Private verification channel created: ${channel}` });
@@ -152,22 +159,54 @@ app.post("/api/signature", async (req, res) => {
 
   try {
     const recovered = ethers.verifyMessage(data.challenge, signature);
-    if (recovered.toLowerCase() !== data.wallet.toLowerCase()) return res.status(400).json({ error: "Signature mismatch" });
+    if (recovered.toLowerCase() !== data.wallet.toLowerCase())
+      return res.status(400).json({ error: "Signature mismatch" });
 
     const guild = client.guilds.cache.get(GUILD_ID);
     const member = await guild.members.fetch(userId);
 
-    const role = guild.roles.cache.find(r => r.name === "Covenant Verified Signatory");
-    if (role) await member.roles.add(role);
+    const grantedRoles = [];
 
-    // Clean up
+    const baseRole = guild.roles.cache.find(r => r.name === "Covenant Verified Signatory");
+    if (baseRole) {
+      await member.roles.add(baseRole);
+      grantedRoles.push(baseRole.name);
+    }
+
+    let score = 0;
+    try {
+      score = await fetchPassportScore(data.wallet);
+    } catch (e) {
+      console.error("Passport lookup failed:", e.message);
+    }
+
+    if (score >= 70) {
+      const chosen = guild.roles.cache.find(r => r.name === "Chosen One");
+      if (chosen) {
+        await member.roles.add(chosen);
+        grantedRoles.push(chosen.name);
+      }
+    }
+
+    if (score >= 20) {
+      const og = guild.roles.cache.find(r => r.name === "O.G. HUMN");
+      if (og) {
+        await member.roles.add(og);
+        grantedRoles.push(og.name);
+      }
+    }
+
+    const channel = guild.channels.cache.get(data.channelId);
+    if (channel) {
+      await channel.send(
+        `✅ **Wallet verified**\n\n🧮 Passport score: **${score}**\n🏷 Roles granted: **${grantedRoles.join(", ") || "None"}**\n\nChannel will close shortly…`
+      );
+      setTimeout(() => channel.delete().catch(() => {}), 8000);
+    }
+
     challenges.delete(userId);
 
-    // Auto-delete private channel
-    const channel = guild.channels.cache.get(data.channelId);
-    if (channel) setTimeout(() => channel.delete().catch(() => {}), 5000);
-
-    return res.json({ success: true });
+    return res.json({ success: true, score, roles: grantedRoles });
 
   } catch (err) {
     console.error(err);
