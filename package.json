@@ -20,9 +20,7 @@
     "express": "^4.18.2",
     "@reown/appkit": "^1.8.17",
     "@reown/appkit-adapter-ethers": "^1.8.17",
-    "@human.tech/waap-sdk": "latest"
-  },
-  "devDependencies": {
+    "@human.tech/waap-sdk": "latest",
     "esbuild": "^0.20.0"
   }
 }
