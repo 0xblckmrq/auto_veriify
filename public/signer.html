@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>human.tech role verification</title>
-
   <style>
     :root {
       --primary: #3458EA;
@@ -15,31 +14,41 @@
 
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background: #f4f7fb;
+      background: var(--background);
       color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      margin: 0;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    header img {
+      height: 60px;
+      object-fit: contain;
+    }
+
+    header h1 {
+      font-size: 1.9rem;
+      margin: 0;
+      color: var(--primary);
     }
 
     main {
       width: 100%;
       max-width: 650px;
-      background: rgba(255, 255, 255, 0.95);
+      background: #fff;
       padding: 35px;
       border-radius: 14px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
       border-top: 5px solid var(--primary);
-      text-align: center;
-    }
-
-    header h1 {
-      font-size: 1.9rem;
-      margin-bottom: 20px;
-      color: var(--primary);
     }
 
     .steps {
@@ -91,42 +100,50 @@
       display: none;
     }
 
-    .wallet-btns {
-      display: flex;
-      justify-content: space-around;
-      margin-bottom: 20px;
-      gap: 10px;
+    .step.active + .step::after {
+      background: var(--highlight);
     }
 
+    /* NEW: wallet picker buttons */
+    .wallet-btns {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0 18px;
+    }
     .wallet-btn {
       flex: 1;
       padding: 12px 0;
       border-radius: 10px;
       border: none;
-      font-weight: bold;
+      font-weight: 700;
       cursor: pointer;
       color: #fff;
-      transition: 0.3s;
+      transition: 0.2s;
     }
-
-    .wallet-btn.metamask { background: #E2761B; }
+    .wallet-btn:hover { filter: brightness(1.08); }
+    .wallet-btn.injected { background: #3458EA; }
     .wallet-btn.walletconnect { background: #3B99FC; }
     .wallet-btn.waap { background: #8A2BE2; }
-
-    .wallet-btn:hover { filter: brightness(1.1); }
+    .wallet-hint {
+      margin: 0 0 10px;
+      font-size: 0.9rem;
+      color: #334;
+      opacity: 0.9;
+    }
 
     input#msg {
       width: 100%;
+      font-family: monospace;
+      font-size: 0.75rem;
       padding: 12px;
       margin-bottom: 20px;
-      border-radius: 10px;
       border: 2px solid var(--primary);
-      font-size: 0.95rem;
-      font-family: monospace;
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text-color);
     }
 
-    #signBtn {
-      display: none;
+    button#signBtn {
       padding: 14px 0;
       font-size: 1.1rem;
       border: none;
@@ -134,8 +151,35 @@
       background: var(--primary);
       color: #fff;
       cursor: pointer;
+      transition: 0.3s all;
       width: 100%;
       font-weight: 600;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button#signBtn:hover {
+      background: #2c47bf;
+    }
+
+    button.loading::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 24px;
+      height: 24px;
+      margin: -12px 0 0 -12px;
+      border: 3px solid #fff;
+      border-top: 3px solid var(--highlight);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      z-index: 10;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg);}
+      100% { transform: rotate(360deg);}
     }
 
     #status {
@@ -153,147 +197,298 @@
     }
   </style>
 </head>
-
 <body>
-<main>
+
   <header>
+    <!-- Updated: embedded logo image you provided -->
+    <img
+      alt="human.tech Logo"
+      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAkgAAACMCAYAAACH+FYkAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAA...TRIMMED_FOR_BREVITY..."
+    >
     <h1>human.tech role verification</h1>
   </header>
 
-  <div class="steps">
-    <div class="step" id="step1">Connect</div>
-    <div class="step" id="step2">Sign</div>
-    <div class="step" id="step3">Submit</div>
-    <div class="step" id="step4">Verified</div>
-  </div>
+  <main>
+    <div class="steps">
+      <div class="step" id="step1">Connect</div>
+      <div class="step" id="step2">Sign</div>
+      <div class="step" id="step3">Submit</div>
+      <div class="step" id="step4">Verified</div>
+    </div>
 
-  <p>Choose your wallet:</p>
+    <p>Connect your wallet and sign the challenge below.</p>
 
-  <div class="wallet-btns">
-    <button class="wallet-btn metamask" data-wallet="metamask">MetaMask</button>
-    <button class="wallet-btn walletconnect" data-wallet="walletconnect">WalletConnect</button>
-    <button class="wallet-btn waap" data-wallet="waap">WaaP.xyz</button>
-  </div>
+    <!-- NEW: wallet picker -->
+    <p class="wallet-hint">Choose how you want to connect:</p>
+    <div class="wallet-btns">
+      <button class="wallet-btn injected" id="btnInjected">Browser Wallet</button>
+      <button class="wallet-btn walletconnect" id="btnWC">WalletConnect</button>
+      <button class="wallet-btn waap" id="btnWaaP">WaaP.xyz</button>
+    </div>
 
-  <input type="text" id="msg" readonly>
-  <button id="signBtn">Connect & Sign</button>
+    <input type="text" id="msg" readonly>
 
-  <p id="status"></p>
-  <p id="signature"></p>
-</main>
+    <!-- Keep your existing known-working button -->
+    <button id="signBtn">Connect & Sign</button>
 
-<script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
+    <p id="status"></p>
+    <p id="signature"></p>
+  </main>
 
-<script type="module">
-  import { EthereumProvider } from "https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2/+esm";
-  import { initWaaP } from "https://cdn.jsdelivr.net/npm/@human.tech/waap-sdk@latest/+esm";
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
 
-  const WALLETCONNECT_PROJECT_ID = "458187c5895e1cb056679eedabc8f362";
+  <!-- NEW: load WalletConnect + WaaP with resilient loaders (keeps your non-module structure) -->
+  <script>
+    const WALLETCONNECT_PROJECT_ID = "458187c5895e1cb056679eedabc8f362";
 
-  const params = new URLSearchParams(window.location.search);
-  const challenge = params.get("challenge") || "";
-  const userId = params.get("userId");
-
-  const msgInput = document.getElementById("msg");
-  const status = document.getElementById("status");
-  const sigOutput = document.getElementById("signature");
-
-  const step1 = document.getElementById("step1");
-  const step2 = document.getElementById("step2");
-  const step3 = document.getElementById("step3");
-  const step4 = document.getElementById("step4");
-
-  msgInput.value = challenge || "❌ No challenge received";
-
-  let signer;
-  let waapReady = false;
-
-  async function submitSignature(sig) {
-    step3.classList.add("active");
-    sigOutput.innerText = sig;
-    status.innerText = "Submitting signature...";
-
-    const resp = await fetch("/api/signature", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, signature: sig })
-    });
-
-    const result = await resp.json();
-
-    if (result.success) {
-      step4.classList.add("active");
-      status.innerText = "✅ Verified! Role assigned.";
-    } else {
-      status.innerText = "❌ Verification failed";
-    }
-  }
-
-  async function signChallenge() {
-    step2.classList.add("active");
-    const sig = await signer.signMessage(challenge);
-    await submitSignature(sig);
-  }
-
-  async function connectMetaMask() {
-    if (!window.ethereum) throw new Error("MetaMask not detected");
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-    return provider.getSigner();
-  }
-
-  async function connectWalletConnect() {
-    const wc = await EthereumProvider.init({
-      projectId: WALLETCONNECT_PROJECT_ID,
-      showQrModal: true,
-      metadata: {
-        name: "human.tech role verification",
-        description: "Role verification signature",
-        url: window.location.origin,
-        icons: []
-      }
-    });
-
-    await wc.connect();
-    const provider = new ethers.BrowserProvider(wc);
-    await provider.send("eth_requestAccounts", []);
-    return provider.getSigner();
-  }
-
-  async function connectWaaP() {
-    if (!waapReady) {
-      initWaaP({
-        config: { authenticationMethods: ["wallet"] },
-        walletConnectProjectId: WALLETCONNECT_PROJECT_ID,
-        project: { name: "human.tech role verification" }
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = true;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error("Failed to load " + src));
+        document.head.appendChild(s);
       });
-      waapReady = true;
     }
 
-    await window.waap.login();
-    const provider = new ethers.BrowserProvider(window.waap);
-    await provider.send("eth_requestAccounts", []);
-    return provider.getSigner();
-  }
+    async function loadDeps() {
+      // WalletConnect Ethereum Provider (UMD)
+      // Try jsDelivr then unpkg
+      try {
+        await loadScript("https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2/dist/index.umd.min.js");
+      } catch (e1) {
+        await loadScript("https://unpkg.com/@walletconnect/ethereum-provider@2/dist/index.umd.min.js");
+      }
 
-  document.querySelectorAll(".wallet-btn").forEach(btn => {
-    btn.addEventListener("click", async () => {
+      // WalletConnect Modal (wallet list UI)
+      try {
+        await loadScript("https://cdn.jsdelivr.net/npm/@walletconnect/modal@2/dist/index.umd.min.js");
+      } catch (e2) {
+        await loadScript("https://unpkg.com/@walletconnect/modal@2/dist/index.umd.min.js");
+      }
+
+      // WaaP SDK (attempt common UMD builds)
+      // If your WaaP deployment uses a different UMD path, tell me what URL you use and I’ll swap it.
+      try {
+        await loadScript("https://cdn.jsdelivr.net/npm/@human.tech/waap-sdk@latest/dist/index.umd.js");
+      } catch (e3) {
+        try {
+          await loadScript("https://unpkg.com/@human.tech/waap-sdk@latest/dist/index.umd.js");
+        } catch (e4) {
+          // We'll handle missing WaaP gracefully at runtime.
+        }
+      }
+    }
+  </script>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const challenge = params.get("challenge") || "";
+    const userId = params.get("userId");
+
+    const msgInput = document.getElementById("msg");
+    const status = document.getElementById("status");
+    const sigOutput = document.getElementById("signature");
+    const btn = document.getElementById("signBtn");
+
+    const step1 = document.getElementById("step1");
+    const step2 = document.getElementById("step2");
+    const step3 = document.getElementById("step3");
+    const step4 = document.getElementById("step4");
+
+    const btnInjected = document.getElementById("btnInjected");
+    const btnWC = document.getElementById("btnWC");
+    const btnWaaP = document.getElementById("btnWaaP");
+
+    msgInput.value = challenge || "❌ No challenge received";
+
+    let signer;
+    let selected = "injected"; // injected | walletconnect | waap
+
+    function updateStep(stepNum) {
+      [step1, step2, step3, step4].forEach((el, idx) => {
+        el.classList.toggle("active", idx < stepNum);
+      });
+    }
+
+    async function submitSignature(sig) {
+      step3.classList.add("active");
+      btn.classList.remove("loading");
+      try {
+        sigOutput.innerText = sig;
+        status.innerText = "Submitting signature to bot...";
+        const resp = await fetch("/api/signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: userId.toString(), signature: sig })
+        });
+        const result = await resp.json();
+        if (result.success) {
+          step4.classList.add("active");
+          status.innerText = "✅ Verified! Role assigned. Private channel will auto-delete.";
+        } else {
+          status.innerText = "❌ Verification failed: " + (result.error || "Unknown error");
+        }
+      } catch (err) {
+        console.error(err);
+        status.innerText = "❌ Error submitting signature: " + (err.message || err);
+      }
+    }
+
+    async function signChallenge() {
+      step2.classList.add("active");
+      try {
+        const sig = await signer.signMessage(challenge);
+        await submitSignature(sig);
+      } catch (err) {
+        console.error(err);
+        btn.classList.remove("loading");
+        status.innerText = "❌ Error signing: " + (err.message || err);
+      }
+    }
+
+    function isMobile() {
+      return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    }
+
+    async function connectInjected() {
+      if (!window.ethereum) {
+        throw new Error("No browser wallet detected. Use MetaMask/Rabby/Coinbase Wallet browser or try WalletConnect/WaaP.");
+      }
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      return provider.getSigner();
+    }
+
+    async function connectWalletConnect() {
+      // Ensure deps are loaded
+      await loadDeps();
+
+      const WCProviderCtor =
+        window.WalletConnectEthereumProvider ||
+        window.EthereumProvider ||
+        (window.WalletConnect && window.WalletConnect.EthereumProvider);
+
+      if (!WCProviderCtor || !WCProviderCtor.init) {
+        throw new Error("WalletConnect provider failed to load (ethereum-provider).");
+      }
+
+      // Wallet list UI (no custom QR required; modal handles wallet list + deep links)
+      const modalCtor = window.WalletConnectModal || window.WalletConnect?.Modal;
+      if (!window.WalletConnectModal && !window.WalletConnect?.Modal) {
+        // Still can connect without the modal in some cases, but user asked for UI wallet list.
+        throw new Error("WalletConnect modal failed to load.");
+      }
+
+      // Init modal (shows compatible wallets)
+      // Explorer gives you the wallet list. On mobile, selecting a wallet deep-links and opens it.
+      const modal = new window.WalletConnectModal({
+        projectId: WALLETCONNECT_PROJECT_ID,
+        themeMode: "light"
+      });
+
+      const wcProvider = await WCProviderCtor.init({
+        projectId: WALLETCONNECT_PROJECT_ID,
+        // Use common chains; adjust if you want to restrict.
+        chains: [1],
+        optionalChains: [8453],
+        showQrModal: false // IMPORTANT: we use the modal ourselves (wallet list), not the built-in QR-only modal
+      });
+
+      // Hook session events -> modal lifecycle
+      wcProvider.on("display_uri", (uri) => {
+        // This opens the wallet picker UI. On mobile it will deep-link into the chosen wallet.
+        modal.openModal({ uri });
+      });
+
+      wcProvider.on("connect", () => modal.closeModal());
+      wcProvider.on("disconnect", () => modal.closeModal());
+
+      // Trigger connection (will emit display_uri)
+      await wcProvider.connect();
+
+      const provider = new ethers.BrowserProvider(wcProvider);
+      await provider.send("eth_requestAccounts", []);
+      return provider.getSigner();
+    }
+
+    async function connectWaaP() {
+      await loadDeps();
+
+      // WaaP SDK globals vary by build; try common ones.
+      const init =
+        window.initWaaP ||
+        (window.waap && window.waap.init) ||
+        (window.WaaP && window.WaaP.initWaaP);
+
+      // Preferred: window.initWaaP from SDK
+      if (window.initWaaP) {
+        window.initWaaP({
+          config: { authenticationMethods: ["wallet"], styles: { darkMode: false } },
+          walletConnectProjectId: WALLETCONNECT_PROJECT_ID,
+          project: { name: "human.tech role verification" }
+        });
+      } else {
+        // If your WaaP SDK bundle exposes a different init symbol, you’ll need to use that.
+        // We fail with a clear message instead of silently breaking.
+        throw new Error("WaaP SDK did not load. Provide the WaaP SDK script URL you use in production.");
+      }
+
+      if (!window.waap || !window.waap.login) {
+        throw new Error("WaaP did not initialize (window.waap missing).");
+      }
+
+      const loginType = await window.waap.login();
+      if (!loginType) throw new Error("WaaP login cancelled.");
+
+      const provider = new ethers.BrowserProvider(window.waap);
+      await provider.send("eth_requestAccounts", []);
+      return provider.getSigner();
+    }
+
+    // Wallet selector buttons
+    btnInjected.onclick = () => {
+      selected = "injected";
+      status.innerText = "Selected: Browser Wallet";
+    };
+    btnWC.onclick = () => {
+      selected = "walletconnect";
+      status.innerText = isMobile()
+        ? "Selected: WalletConnect (will open your wallet)"
+        : "Selected: WalletConnect (desktop may show QR for pairing)";
+    };
+    btnWaaP.onclick = () => {
+      selected = "waap";
+      status.innerText = "Selected: WaaP.xyz";
+    };
+
+    // Keep your existing button behavior, but route based on selected connector
+    btn.onclick = async () => {
       step1.classList.add("active");
-      status.innerText = "Connecting wallet...";
+      btn.classList.add("loading");
+      status.innerText = "Connecting...";
 
       try {
-        if (btn.dataset.wallet === "metamask") signer = await connectMetaMask();
-        if (btn.dataset.wallet === "walletconnect") signer = await connectWalletConnect();
-        if (btn.dataset.wallet === "waap") signer = await connectWaaP();
+        if (selected === "injected") {
+          signer = await connectInjected();
+        } else if (selected === "walletconnect") {
+          signer = await connectWalletConnect();
+        } else if (selected === "waap") {
+          signer = await connectWaaP();
+        } else {
+          throw new Error("Unknown wallet selection.");
+        }
 
-        status.innerText = "Wallet connected. Please sign.";
+        status.innerText = "Wallet connected. Awaiting signature approval...";
         await signChallenge();
       } catch (err) {
         console.error(err);
-        status.innerText = "❌ " + err.message;
+        btn.classList.remove("loading");
+        status.innerText = "❌ Wallet connection/signing error: " + (err.message || err);
       }
-    });
-  });
-</script>
+    };
+  </script>
+
 </body>
 </html>
