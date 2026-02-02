@@ -20,8 +20,9 @@ const GUILD_ID = process.env.GUILD_ID;
 const API_KEY = process.env.WHITELIST_API_KEY;
 const EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
 const PASSPORT_API_KEY = process.env.PASSPORT_API_KEY;
+const BASE_RPC_URL = process.env.BASE_RPC_URL;
 
-if (!TOKEN || !CLIENT_ID || !GUILD_ID || !API_KEY || !EXTERNAL_URL || !PASSPORT_API_KEY) {
+if (!TOKEN || !CLIENT_ID || !GUILD_ID || !API_KEY || !EXTERNAL_URL || !PASSPORT_API_KEY || !BASE_RPC_URL) {
   console.error("Missing environment variables");
   process.exit(1);
 }
@@ -39,10 +40,27 @@ app.listen(PORT, () => console.log(`HTTP server running on port ${PORT}`));
 // ===== DISCORD CLIENT =====
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
-// ===== CHALLENGES & COOLDOWN =====
+// ===== CHALLENGES, COOLDOWN, CHANNEL TRACKING =====
 const challenges = new Map();
 const cooldowns = new Map();
+const createdChannels = new Map(); // userId -> channelId
 const COOLDOWN_SECONDS = 300;
+const CHANNEL_LIFETIME = 15 * 60 * 1000; // 15 minutes
+
+// ===== CACHES =====
+const scoreCache = new Map(); // wallet -> { score, timestamp }
+const nftCache = new Map();   // wallet -> { isHolder, timestamp }
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// ===== RETRY HELPER =====
+async function retry(fn, retries = 3, delay = 1000) {
+  let lastError;
+  for (let i = 0; i < retries; i++) {
+    try { return await fn(); }
+    catch (e) { lastError = e; await new Promise(r => setTimeout(r, delay)); }
+  }
+  throw lastError;
+}
 
 // ===== REGISTER /verify SLASH COMMAND =====
 (async () => {
@@ -70,18 +88,61 @@ async function fetchWhitelist() {
 }
 
 async function fetchPassportScore(wallet) {
-  const url = `https://api.passport.xyz/v2/stamps/9325/score/${wallet}`;
+  const cached = scoreCache.get(wallet);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.score;
 
-  const res = await fetch(url, {
-    headers: {
-      "X-API-KEY": PASSPORT_API_KEY
-    }
+  const url = `https://api.passport.xyz/v2/stamps/9325/score/${wallet}`;
+  const score = await retry(async () => {
+    const res = await fetch(url, { headers: { "X-API-KEY": PASSPORT_API_KEY } });
+    if (!res.ok) throw new Error("Passport API failed");
+    const json = await res.json();
+    return Number(json.score ?? json?.data?.score ?? 0);
   });
 
-  if (!res.ok) throw new Error("Passport API failed");
+  scoreCache.set(wallet, { score, timestamp: Date.now() });
+  return score;
+}
 
-  const json = await res.json();
-  return Number(json.score ?? json?.data?.score ?? 0);
+const ERC721_ABI = [
+  "function balanceOf(address owner) view returns (uint256)"
+];
+
+async function checkNFTOwnershipMulti(wallet) {
+  const cached = nftCache.get(wallet);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.isHolder;
+
+  let isHolder = false;
+
+  await retry(async () => {
+    // Base network NFT
+    try {
+      const baseProvider = new ethers.JsonRpcProvider(BASE_RPC_URL);
+      const baseContract = new ethers.Contract(
+        "0x89BC14a2fe52Ad7716F7a4a2b54426241CaB71BC",
+        ERC721_ABI,
+        baseProvider
+      );
+      const baseBalance = await baseContract.balanceOf(wallet);
+      if (baseBalance.gt(0)) isHolder = true;
+    } catch (e) { console.error("Base NFT check failed:", e.message); }
+
+    // Ethereum mainnet NFT
+    try {
+      const ethProvider = ethers.getDefaultProvider("homestead");
+      const ethContract = new ethers.Contract(
+        "0xa3c5bb6a34d758fc5d5c656b06b51b4078ba68a8",
+        ERC721_ABI,
+        ethProvider
+      );
+      const ethBalance = await ethContract.balanceOf(wallet);
+      if (ethBalance.gt(0)) isHolder = true;
+    } catch (e) { console.error("Ethereum NFT check failed:", e.message); }
+
+    return true;
+  });
+
+  nftCache.set(wallet, { isHolder, timestamp: Date.now() });
+  return isHolder;
 }
 
 // ===== DISCORD EVENTS =====
@@ -127,6 +188,18 @@ client.on("interactionCreate", async interaction => {
         ]
       });
 
+      // Track the created channel and schedule deletion in 15 minutes
+      createdChannels.set(userId, channel.id);
+      setTimeout(() => {
+        const chId = createdChannels.get(userId);
+        if (chId) {
+          const ch = guild.channels.cache.get(chId);
+          if (ch) ch.delete().catch(() => {});
+          createdChannels.delete(userId);
+          challenges.delete(userId);
+        }
+      }, CHANNEL_LIFETIME);
+
       const challenge = `Verify ownership for ${wallet} at ${Date.now()}`;
       challenges.set(userId, { challenge, wallet, channelId: channel.id });
 
@@ -167,46 +240,52 @@ app.post("/api/signature", async (req, res) => {
 
     const grantedRoles = [];
 
+    // Covenant Verified Signatory
     const baseRole = guild.roles.cache.find(r => r.name === "Covenant Verified Signatory");
-    if (baseRole) {
-      await member.roles.add(baseRole);
-      grantedRoles.push(baseRole.name);
-    }
+    if (baseRole) { await member.roles.add(baseRole); grantedRoles.push(baseRole.name); }
 
+    // Passport score roles
     let score = 0;
-    try {
-      score = await fetchPassportScore(data.wallet);
-    } catch (e) {
-      console.error("Passport lookup failed:", e.message);
-    }
+    try { score = await fetchPassportScore(data.wallet); }
+    catch (e) { console.error("Passport lookup failed:", e.message); }
 
     if (score >= 70) {
       const chosen = guild.roles.cache.find(r => r.name === "Chosen One");
-      if (chosen) {
-        await member.roles.add(chosen);
-        grantedRoles.push(chosen.name);
-      }
+      if (chosen) { await member.roles.add(chosen); grantedRoles.push(chosen.name); }
     }
 
     if (score >= 20) {
       const og = guild.roles.cache.find(r => r.name === "O.G. HUMN");
-      if (og) {
-        await member.roles.add(og);
-        grantedRoles.push(og.name);
-      }
+      if (og) { await member.roles.add(og); grantedRoles.push(og.name); }
     }
 
+    // Multi-chain NFT role
+    let isNftHolder = false;
+    try { isNftHolder = await checkNFTOwnershipMulti(data.wallet); }
+    catch (e) { console.error("NFT ownership check failed:", e.message); }
+
+    if (isNftHolder) {
+      const ogRole = guild.roles.cache.find(r => r.name === "Covenant Signatory O.G.");
+      if (ogRole) { await member.roles.add(ogRole); grantedRoles.push(ogRole.name); }
+    }
+
+    // Send results in private channel
     const channel = guild.channels.cache.get(data.channelId);
     if (channel) {
       await channel.send(
-        `✅ **Wallet verified**\n\n🧮 Passport score: **${score}**\n🏷 Roles granted: **${grantedRoles.join(", ") || "None"}**\n\nChannel will close shortly…`
+        `✅ **Wallet verified**\n\n` +
+        `🧮 Passport score: **${score}**\n` +
+        `🎨 NFT holder: **${isNftHolder ? "Yes" : "No"}**\n` +
+        `🏷 Roles granted: **${grantedRoles.join(", ") || "None"}**\n\n` +
+        `Channel will close shortly…`
       );
-      setTimeout(() => channel.delete().catch(() => {}), 8000);
+      setTimeout(() => channel.delete().catch(() => {}), 8000); // cleanup after successful verification
+      createdChannels.delete(userId);
     }
 
     challenges.delete(userId);
 
-    return res.json({ success: true, score, roles: grantedRoles });
+    return res.json({ success: true, score, nft: isNftHolder, roles: grantedRoles });
 
   } catch (err) {
     console.error(err);
