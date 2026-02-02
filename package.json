@@ -6,6 +6,9 @@
   "type": "commonjs",
   "scripts": {
     "start": "node bot.js"
+    "build:wallets": "node scripts/build-wallets.js",
+    "build": "npm run build:wallets",
+
   },
   "engines": {
     "node": ">=18.0.0"
