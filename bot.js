@@ -103,10 +103,10 @@ async function fetchPassportScore(wallet) {
   return score;
 }
 
-const ERC721_ABI = [
-  "function balanceOf(address owner) view returns (uint256)"
-];
+// ERC721 ABI
+const ERC721_ABI = ["function balanceOf(address owner) view returns (uint256)"];
 
+// ===== MULTI-CHAIN NFT CHECK =====
 async function checkNFTOwnershipMulti(wallet) {
   const cached = nftCache.get(wallet);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.isHolder;
@@ -114,7 +114,7 @@ async function checkNFTOwnershipMulti(wallet) {
   let isHolder = false;
 
   await retry(async () => {
-    // Base network NFT
+    // Base network
     try {
       const baseProvider = new ethers.JsonRpcProvider(BASE_RPC_URL);
       const baseContract = new ethers.Contract(
@@ -122,11 +122,11 @@ async function checkNFTOwnershipMulti(wallet) {
         ERC721_ABI,
         baseProvider
       );
-      const baseBalance = await baseContract.balanceOf(wallet);
-      if (baseBalance.gt(0)) isHolder = true;
+      const balance = await baseContract.callStatic.balanceOf(wallet);
+      if (balance.gt(0)) isHolder = true;
     } catch (e) { console.error("Base NFT check failed:", e.message); }
 
-    // Ethereum mainnet NFT
+    // Ethereum mainnet
     try {
       const ethProvider = ethers.getDefaultProvider("homestead");
       const ethContract = new ethers.Contract(
@@ -134,8 +134,8 @@ async function checkNFTOwnershipMulti(wallet) {
         ERC721_ABI,
         ethProvider
       );
-      const ethBalance = await ethContract.balanceOf(wallet);
-      if (ethBalance.gt(0)) isHolder = true;
+      const balance = await ethContract.callStatic.balanceOf(wallet);
+      if (balance.gt(0)) isHolder = true;
     } catch (e) { console.error("Ethereum NFT check failed:", e.message); }
 
     return true;
@@ -188,7 +188,7 @@ client.on("interactionCreate", async interaction => {
         ]
       });
 
-      // Track the created channel and schedule deletion in 15 minutes
+      // Track and auto-delete after 15 minutes
       createdChannels.set(userId, channel.id);
       setTimeout(() => {
         const chId = createdChannels.get(userId);
@@ -198,7 +198,7 @@ client.on("interactionCreate", async interaction => {
           createdChannels.delete(userId);
           challenges.delete(userId);
         }
-      }, CHANNEL_LIFETIME);
+      }, 15 * 60 * 1000);
 
       const challenge = `Verify ownership for ${wallet} at ${Date.now()}`;
       challenges.set(userId, { challenge, wallet, channelId: channel.id });
@@ -279,7 +279,7 @@ app.post("/api/signature", async (req, res) => {
         `🏷 Roles granted: **${grantedRoles.join(", ") || "None"}**\n\n` +
         `Channel will close shortly…`
       );
-      setTimeout(() => channel.delete().catch(() => {}), 8000); // cleanup after successful verification
+      setTimeout(() => channel.delete().catch(() => {}), 8000); // cleanup after success
       createdChannels.delete(userId);
     }
 
