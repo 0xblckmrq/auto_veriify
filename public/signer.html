@@ -99,7 +99,7 @@
     .step:last-child::after { display: none; }
     .step.active + .step::after { background: var(--highlight); }
 
-    /* ADDED: wallet buttons UI */
+    /* wallet buttons UI */
     .wallet-btns {
       display: flex;
       gap: 10px;
@@ -190,7 +190,6 @@
 <body>
 
   <header>
-    <!-- Use your provided logo file saved as: public/logo.png -->
     <img src="/logo.png" alt="human.tech Logo">
     <h1>human.tech role verification</h1>
   </header>
@@ -205,7 +204,6 @@
 
     <p>Connect your wallet used for the covenant and sign the challenge below.</p>
 
-    <!-- ADDED: wallet choices (does not change your working connect/sign flow) -->
     <div class="wallet-btns">
       <button class="wallet-btn injected" id="btnInjected" type="button">Browser Wallet</button>
       <button class="wallet-btn walletconnect" id="btnWC" type="button">WalletConnect</button>
@@ -214,7 +212,6 @@
 
     <input type="text" id="msg" readonly>
 
-    <!-- Keep your known-working button -->
     <button id="signBtn" type="button">Connect & Sign</button>
 
     <p id="status"></p>
@@ -224,19 +221,9 @@
   <!-- Keep: ethers UMD (known working) -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
 
-  <!-- ADDED: Reown AppKit + Ethers adapter (Option B) via ESM; jsDelivr only -->
-  <script type="module">
-    import { createAppKit } from "https://cdn.jsdelivr.net/npm/@reown/appkit@1.8.17/+esm";
-    import { EthersAdapter } from "https://cdn.jsdelivr.net/npm/@reown/appkit-adapter-ethers@1.8.17/+esm";
-    import { mainnet, base } from "https://cdn.jsdelivr.net/npm/@reown/appkit@1.8.17/networks/+esm";
-
-    // WaaP SDK (ESM) via jsDelivr
-    import { initWaaP } from "https://cdn.jsdelivr.net/npm/@human.tech/waap-sdk@latest/+esm";
-
-    // Expose to non-module script below
-    window.__reown = { createAppKit, EthersAdapter, mainnet, base };
-    window.__initWaaP = initWaaP;
-  </script>
+  <!-- ✅ NEW: self-hosted bundle (Reown AppKit + WaaP) -->
+  <!-- This file is generated at build time into: public/vendor/wallets.bundle.js -->
+  <script src="/vendor/wallets.bundle.js"></script>
 
   <script>
     // Surface errors in UI (helps inside Discord browsers)
@@ -314,9 +301,7 @@
         await submitSignature(sig);
       }
 
-      // ======= CONNECTORS =======
-
-      // 1) Injected (your known-working path)
+      // 1) Injected (known working)
       async function connectInjected() {
         if (!window.ethereum) {
           throw new Error("No browser wallet detected. Try WalletConnect or WaaP, or open in MetaMask/Rabby browser.");
@@ -327,15 +312,13 @@
       }
 
       // 2) WalletConnect via Reown AppKit (Option B)
-      // Shows wallet list UI. On mobile, selecting a wallet will deep-link and open it.
       async function connectWithAppKit() {
         if (!window.__reown?.createAppKit) {
-          throw new Error("Reown AppKit not loaded. Check if your environment blocks jsDelivr.");
+          throw new Error("Reown AppKit not loaded. Did /vendor/wallets.bundle.js build and deploy?");
         }
 
         if (!appkit) {
           const { createAppKit, EthersAdapter, mainnet, base } = window.__reown;
-
           const ethersAdapter = new EthersAdapter();
 
           appkit = createAppKit({
@@ -351,11 +334,8 @@
           });
         }
 
-        // Open the wallet list / connect view (per Reown actions docs)
-        // This is the “Option B” wallet UX.
         appkit.open({ view: "Connect", namespace: "eip155" });
 
-        // Wait until provider is available
         const eip155Provider = await new Promise((resolve, reject) => {
           const timeout = setTimeout(() => reject(new Error("Timed out waiting for wallet connection.")), 60000);
 
@@ -369,7 +349,6 @@
           });
         });
 
-        // Close modal after connection
         appkit.close();
 
         const provider = new ethers.BrowserProvider(eip155Provider);
@@ -380,7 +359,7 @@
       // 3) WaaP.xyz
       async function connectWaaP() {
         if (!window.__initWaaP) {
-          throw new Error("WaaP SDK not loaded. Check if your environment blocks jsDelivr.");
+          throw new Error("WaaP SDK not loaded. Did /vendor/wallets.bundle.js build and deploy?");
         }
 
         window.__initWaaP({
@@ -404,8 +383,7 @@
         return provider.getSigner();
       }
 
-      // ======= UI EVENTS =======
-
+      // UI events
       btnInjected.addEventListener("click", () => { selected = "injected"; setStatus("Selected: Browser Wallet"); });
       btnWC.addEventListener("click", () => { selected = "walletconnect"; setStatus("Selected: WalletConnect (AppKit)"); });
       btnWaaP.addEventListener("click", () => { selected = "waap"; setStatus("Selected: WaaP.xyz"); });
